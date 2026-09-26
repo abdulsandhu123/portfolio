@@ -1,77 +1,61 @@
-# Portfolio — Vercel + MongoDB
+# Portfolio Website
 
-Static portfolio site (`index.html`) with a real backend: two Vercel
-serverless functions (`/api/profile`, `/api/projects`) that read and
-write a MongoDB database. The admin panel (⚙ admin link in the footer)
-lets you edit your profile, photo and projects live — changes are
-visible to every visitor, on every device.
+A modern, animated, interactive developer portfolio built as a single self-contained HTML file — dark editor/terminal-themed design with a live projects section, a profile photo, and an owner-only admin panel.
 
-## 1. Create a free MongoDB Atlas database
+**Live version (with full database + admin panel):**
+https://claude.ai/artifact/DRAson2DFC8KN44CjkFNFS
 
-1. Go to https://www.mongodb.com/cloud/atlas/register and create a free account.
-2. Create a free (M0) cluster.
-3. Under **Database Access**, create a database user with a username/password.
-4. Under **Network Access**, add `0.0.0.0/0` (allow access from anywhere) — Vercel's servers use rotating IPs.
-5. Click **Connect → Drivers**, copy the connection string. It looks like:
-   `mongodb+srv://<user>:<password>@<cluster>.mongodb.net/?retryWrites=true&w=majority`
+**Static version (GitHub Pages):**
+https://abdulsandhu123.github.io/portfolio/
 
-## 2. Push this project to GitHub
+---
 
-```bash
-cd portfolio-mongodb
-git init
-git add .
-git commit -m "Portfolio with MongoDB backend"
-git branch -M main
-git remote add origin https://github.com/<your-username>/<repo-name>.git
-git push -u origin main
-```
+## Features
 
-## 3. Deploy on Vercel
+- Dark, terminal/editor-inspired design with a monospace + sans-serif type pairing
+- Animated hero section — typing effect that cycles through role titles
+- Interactive profile photo card — 3D tilt-on-hover, cursor-follow glow, idle floating animation, gradient border
+- Scroll-triggered reveal animations for each section
+- Animated skill bars
+- Projects section that lists your work as code-file-style cards
+- Fully responsive — works on mobile and desktop
+- Admin panel (password + owner-gated) to edit:
+  - Name, tagline, and role titles
+  - About/bio text
+  - Profile photo
+  - Email, WhatsApp number, GitHub and LinkedIn links
+  - Add / delete portfolio projects
 
-1. Go to https://vercel.com and sign in (GitHub login is easiest).
-2. Click **Add New → Project**, import the GitHub repo you just pushed.
-3. Vercel will auto-detect the `/api` folder as Serverless Functions and
-   serve `index.html` as the site — no build settings needed.
-4. Before deploying, open **Environment Variables** and add:
-   - `MONGODB_URI` — your connection string from step 1
-   - `MONGODB_DB` — `portfolio` (optional, this is the default)
-   - `ADMIN_SECRET` — the password you want to use to log into the admin panel
-5. Click **Deploy**.
+## Tech stack
 
-Your site will be live at `https://<project-name>.vercel.app`.
+- Plain HTML, CSS, and vanilla JavaScript — no build step, no frameworks
+- Google Fonts: JetBrains Mono + Inter
+- Data storage: Claude's built-in artifact database (`window.claude.use('db')`), available only when this page is opened as a published Claude artifact
 
-## 4. Using the admin panel
+## ⚠️ Important: database limitation on GitHub Pages
 
-- Open your live site, scroll to the footer, click **⚙ admin**.
-- Enter the password you set as `ADMIN_SECRET`.
-- Edit your name, roles, bio, contact links and photo, or add/delete
-  projects — changes save to MongoDB immediately and show up for
-  everyone who visits the site.
+This project was originally built as a Claude artifact, where a real backend database powers the login and edit features.
 
-## Changing the admin password later
+When hosted as a **static site** (GitHub Pages, Netlify, plain hosting, etc.), the site displays perfectly — same design, same animations, same photo — but the **admin panel, login, and "add project" features will not work**, because they depend on Claude's hosted database which only exists inside the artifact runtime.
 
-Go to your Vercel project → **Settings → Environment Variables**,
-update `ADMIN_SECRET`, then **Redeploy** the project (Vercel does not
-apply new env vars to already-running functions until you redeploy).
+If you want the admin/database features to work outside of Claude, the JavaScript needs to be rewritten to use a real backend (e.g. Firebase, Supabase, or a small custom API) instead of `window.claude.use('db')`.
 
-## Project structure
-
-```
-index.html          the whole site (public page + admin panel)
-api/login.js         checks the entered password against ADMIN_SECRET
-api/profile.js        GET/POST the profile document
-api/projects.js       GET/POST/DELETE project documents
-lib/db.js             shared MongoDB connection + admin-secret check
-package.json          declares the "mongodb" dependency
-.env.example          template for local environment variables
-```
-
-## Running locally (optional)
+## Local / GitHub Pages setup
 
 ```bash
-npm install -g vercel
-npm install
-vercel dev
+git clone https://github.com/abdulsandhu123/portfolio.git
+cd portfolio
+# open index.html directly in a browser, or push to GitHub and enable Pages:
+# Settings → Pages → Branch: main → folder: / (root) → Save
 ```
-Create a `.env` file (copy `.env.example`) with your real values first.
+
+## File structure
+
+```
+portfolio/
+└── index.html   # everything — markup, styles, and script — in one file
+```
+
+## License
+
+Free to use and modify for personal portfolio purposes.
