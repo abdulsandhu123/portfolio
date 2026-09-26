@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title id="page-title">MARS — Portfolio</title>
+<title id="page-title">Ali Raza — Portfolio</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -241,7 +241,7 @@
     <div id="admin-login-screen" class="admin-login-screen">
       <div class="lock-icon">🔒</div>
       <h3>Admin Login</h3>
-      <p class="admin-note">Only the owner can change this website's details (name, photo, contact, links, projects). Enter the admin password to continue — real access is still verified through your claude.ai sign-in underneath.</p>
+      <p class="admin-note">Only the owner can change this website's details (name, photo, contact, links, projects). Enter the admin password to continue.</p>
       <form id="login-form" class="login-form">
         <input type="password" id="admin-password-input" placeholder="Admin password" autocomplete="current-password">
         <button type="submit" class="btn primary" id="admin-login-btn">🔐 Login</button>
@@ -287,8 +287,7 @@
             <img id="f-photo-preview" class="photo-preview" src="">
             <input type="file" id="f-photo-input" accept="image/*">
           </div>
-          <label>Admin password (leave blank to keep current)</label>
-          <input type="password" id="f-password" maxlength="60" placeholder="Set or change admin password" autocomplete="new-password">
+          <p class="admin-note" style="margin-top:-6px;">To change the admin password, update the <code>ADMIN_SECRET</code> environment variable in your Vercel project settings.</p>
           <button type="submit">Save profile</button>
           <div class="status" id="profile-status"></div>
         </form>
@@ -390,6 +389,56 @@
     return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
   }
   let currentProfile = {};
+  let adminSecret = null; // held in memory only after a successful login, sent on writes
+
+  /* ---------- real backend data store: /api/profile + /api/projects (MongoDB via Vercel) ---------- */
+  async function apiGet(url){
+    const r = await fetch(url);
+    if(!r.ok) return null;
+    return r.json();
+  }
+  async function apiWrite(url, method, body){
+    const r = await fetch(url, {
+      method,
+      headers: { 'Content-Type':'application/json', 'x-admin-secret': adminSecret || '' },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    if(!r.ok){ const e = new Error('request_failed'); e.status = r.status; throw e; }
+    return r.json();
+  }
+  function makeApiDb(){
+    let projectsCb = null;
+    async function refreshProjects(){
+      const list = await apiGet('/api/projects');
+      if(projectsCb) projectsCb((list || []).map(p => ({ id: p.id, data: () => p })));
+    }
+    return {
+      collection(name){
+        if(name === 'profile'){
+          return {
+            doc(){
+              return { async set(obj){ await apiWrite('/api/profile', 'POST', obj); } };
+            },
+            async onSnapshot(cb){
+              const data = await apiGet('/api/profile');
+              cb([{ id:'main', data: () => (data || {}) }]);
+            }
+          };
+        }
+        // projects
+        return {
+          doc(id){
+            return {
+              async set(obj){ await apiWrite('/api/projects', 'POST', { ...obj, id }); await refreshProjects(); },
+              async delete(){ await apiWrite('/api/projects?id=' + encodeURIComponent(id), 'DELETE'); await refreshProjects(); }
+            };
+          },
+          onSnapshot(cb){ projectsCb = cb; refreshProjects(); }
+        };
+      }
+
+    };
+  }
 
   /* ---------- apply profile to public page ---------- */
   function applyProfile(p){
@@ -503,26 +552,29 @@
     loginStatus.textContent = '';
 
     const entered = passwordInput.value;
-    const storedHash = currentProfile.adminPasswordHash;
-
-    if(storedHash){
-      const enteredHash = await sha256(entered);
-      if(enteredHash !== storedHash){
+    try{
+      const r = await fetch('/api/login', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ password: entered })
+      });
+      if(!r.ok){
         loginBtn.disabled = false; loginBtn.textContent = '🔐 Login';
         loginStatus.textContent = 'Incorrect password.';
         return;
       }
+    }catch(e){
+      loginBtn.disabled = false; loginBtn.textContent = '🔐 Login';
+      loginStatus.textContent = 'Could not reach the server.';
+      return;
     }
-    // No password set yet (first run) — let the verified owner in and prompt them to set one.
 
+    adminSecret = entered; // kept in memory for this visit only, sent as x-admin-secret on writes
     loginBtn.disabled = false;
     loginBtn.textContent = '🔐 Login';
     loginScreen.style.display = 'none';
     unlockedScreen.style.display = 'block';
     lockedScreen.style.display = 'none';
-    if(!storedHash){
-      document.getElementById('profile-status').textContent = 'Tip: set an admin password below.';
-    }
   });
   document.getElementById('admin-back-1').addEventListener('click', showLoginStep);
 
@@ -577,14 +629,10 @@
       linkedin: document.getElementById('f-linkedin').value.trim(),
     };
     data.photo = pendingPhoto || currentProfile.photo || null;
-    const newPassword = document.getElementById('f-password').value;
-    if(newPassword){ data.adminPasswordHash = await sha256(newPassword); }
-    else if(currentProfile.adminPasswordHash){ data.adminPasswordHash = currentProfile.adminPasswordHash; }
     status.textContent = 'Saving...';
     try{
       await db.collection('profile').doc('main').set(data);
       status.textContent = 'Saved.';
-      document.getElementById('f-password').value = '';
       setTimeout(() => status.textContent = '', 2000);
     }catch(err){ console.error(err); status.textContent = 'Save failed — the photo may be too large, try a smaller image.'; }
   });
@@ -611,7 +659,7 @@
 
   /* ---------- init ---------- */
   async function init(){
-    try{ db = window.claude?.use ? await window.claude.use('db') : null; }catch(e){ db = null; }
+    db = makeApiDb();
     canEdit = true;
 
     if(!db){ renderProjects([]); return; }
